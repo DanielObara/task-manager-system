@@ -58,8 +58,8 @@ task-manager/
    ```bash
    cd ../server
    npm init -y
-   npm install express cors dotenv
-   npm install -D typescript ts-node @types/node @types/express @types/cors
+   npm install express@4.18.2 cors dotenv
+   npm install -D typescript ts-node @types/node @types/express@4.17.21 @types/cors
    npx tsc --init
    ```
 
@@ -69,6 +69,20 @@ task-manager/
    npm install @prisma/client
    npx prisma init --datasource-provider sqlite
    ```
+
+5. **Adicionar scripts no package.json do servidor**
+   ```json
+   "scripts": {
+     "dev": "ts-node src/index.ts",
+     "build": "tsc",
+     "start": "node dist/index.js",
+     "prisma:generate": "prisma generate",
+     "prisma:migrate": "prisma migrate dev",
+     "setup": "npm install && npm run prisma:generate"
+   }
+   ```
+   
+   > **Nota importante**: As versões específicas do Express (4.18.2) e @types/express (4.17.21) foram escolhidas por sua estabilidade e ampla utilização, evitando problemas de compatibilidade.
 
 ### Etapa 2: Modelagem de Dados (15 minutos)
 
@@ -119,16 +133,16 @@ task-manager/
    const prisma = new PrismaClient();
 
    export class TaskController {
-     async getAllTasks(req: Request, res: Response) {
+     getAllTasks = async (req: Request, res: Response) => {
        try {
          const tasks = await prisma.task.findMany();
          res.json(tasks);
        } catch (error) {
          res.status(500).json({ error: 'Erro ao buscar tarefas' });
        }
-     }
+     };
 
-     async getTaskById(req: Request, res: Response) {
+     getTaskById = async (req: Request, res: Response) => {
        try {
          const { id } = req.params;
          const task = await prisma.task.findUnique({
@@ -143,9 +157,9 @@ task-manager/
        } catch (error) {
          res.status(500).json({ error: 'Erro ao buscar tarefa' });
        }
-     }
+     };
 
-     async createTask(req: Request, res: Response) {
+     createTask = async (req: Request, res: Response) => {
        try {
          const { title, description, status } = req.body;
          const newTask = await prisma.task.create({
@@ -159,9 +173,9 @@ task-manager/
        } catch (error) {
          res.status(500).json({ error: 'Erro ao criar tarefa' });
        }
-     }
+     };
 
-     async updateTask(req: Request, res: Response) {
+     updateTask = async (req: Request, res: Response) => {
        try {
          const { id } = req.params;
          const { title, description, status } = req.body;
@@ -179,9 +193,9 @@ task-manager/
        } catch (error) {
          res.status(500).json({ error: 'Erro ao atualizar tarefa' });
        }
-     }
+     };
 
-     async deleteTask(req: Request, res: Response) {
+     deleteTask = async (req: Request, res: Response) => {
        try {
          const { id } = req.params;
          await prisma.task.delete({
@@ -191,8 +205,11 @@ task-manager/
        } catch (error) {
          res.status(500).json({ error: 'Erro ao excluir tarefa' });
        }
-     }
+     };
    }
+   ```
+
+   > **Nota importante**: Observe que os métodos estão definidos como arrow functions (usando a sintaxe `método = async () => {}`) em vez de métodos regulares de classe. Isso é crucial para evitar problemas de contexto do `this` quando esses métodos são passados como callbacks para as rotas do Express.
    ```
 
 3. **Configurar o servidor Express**
@@ -544,23 +561,33 @@ task-manager/
 
 ### Etapa 5: Teste e Depuração (15 minutos)
 
-1. **Iniciar o backend**
+1. **Gerar o Prisma Client**
    ```bash
    cd server
+   npm run prisma:generate
+   ```
+
+2. **Iniciar o backend**
+   ```bash
    npm run dev
    ```
 
-2. **Iniciar o frontend**
+3. **Iniciar o frontend**
    ```bash
    cd ../client
    npm start
    ```
 
-3. **Testar as operações CRUD**
+4. **Testar as operações CRUD**
    - Criar algumas tarefas
    - Atualizar o status de tarefas
    - Excluir tarefas
    - Verificar se as mudanças persistem entre recarregamentos
+
+> **Nota importante**: Se você encontrar erros relacionados ao Prisma Client, como "@prisma/client did not initialize yet", certifique-se de:
+> 1. Ter executado `npm run prisma:generate` para gerar os arquivos do cliente Prisma
+> 2. Não ter arquivos JavaScript (.js) misturados com arquivos TypeScript (.ts) que possam causar conflitos
+> 3. Verificar se o caminho de importação do PrismaClient está correto no seu arquivo taskController.ts
 
 ### Etapa 6: Implementação de Testes (30 minutos)
 
@@ -725,6 +752,45 @@ task-manager/
 ## Resolução de Problemas Comuns
 
 - **CORS**: Certifique-se de que o middleware cors está configurado corretamente
-- **Erros do Prisma**: Verifique se as migrações foram aplicadas corretamente
+- **Erros do Prisma**: Consulte a seção específica sobre Prisma abaixo
 - **Problemas de Tipagem**: Use as interfaces TypeScript definidas para garantir consistência
 - **Comunicação API**: Verifique se a URL da API está correta no serviço do frontend
+
+### Problemas com Prisma
+
+Se você encontrar o erro: "@prisma/client did not initialize yet", siga estas etapas:
+
+1. **Regenerar o cliente Prisma**:
+   ```bash
+   cd server
+   npx prisma generate
+   ```
+
+2. **Verificar importação no controlador**:
+   Se o problema persistir, atualize a importação no arquivo taskController.ts:
+   ```typescript
+   // De:
+   import { PrismaClient } from '@prisma/client';
+   
+   // Para:
+   import { PrismaClient } from '../../generated/prisma';
+   ```
+
+3. **Remover arquivos JavaScript duplicados**:
+   Verifique se não existem versões JavaScript (.js) dos seus arquivos TypeScript (.ts) que possam causar conflitos:
+   ```bash
+   # No PowerShell (Windows)
+   Remove-Item .\src\controllers\*.js
+   Remove-Item .\src\routes\*.js
+   Remove-Item .\src\*.js
+   ```
+
+4. **Reiniciar o servidor**:
+   Após fazer essas alterações, reinicie o servidor.
+
+### Problemas com o contexto 'this' em controladores
+
+Se você encontrar erros relacionados ao contexto `this` nos métodos do controlador quando eles são passados para as rotas, certifique-se de que:
+
+1. Os métodos estão definidos como arrow functions (como mostrado na seção de implementação do controlador)
+2. Você está instanciando corretamente o controlador antes de passar seus métodos para as rotas

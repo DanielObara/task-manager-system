@@ -24,13 +24,52 @@ mkdir "src\__tests__\components" "src\__tests__\services"
 
 ## Configuração do Prisma
 
-Após instalar o Prisma, certifique-se de executar:
+Após instalar o Prisma, é fundamental executar:
 
 ```bash
 npx prisma generate
 ```
 
-Se encontrar erros como "@prisma/client did not initialize yet", consulte o documento `SOLUCAO_PROBLEMAS_PRISMA.md` para obter instruções detalhadas.
+No PowerShell, você pode adicionar isso como um script em seu package.json:
+
+```json
+"scripts": {
+  "prisma:generate": "prisma generate",
+  "prisma:migrate": "prisma migrate dev",
+  "setup": "npm install && npm run prisma:generate"
+}
+```
+
+E então executar:
+
+```powershell
+npm run prisma:generate
+```
+
+### Solução para erros comuns com Prisma no Windows
+
+Se encontrar erros como "@prisma/client did not initialize yet", siga estas etapas:
+
+1. **Gerar o Prisma Client**:
+   ```powershell
+   npm run prisma:generate
+   ```
+
+2. **Remover arquivos JavaScript duplicados que podem causar conflitos**:
+   ```powershell
+   Remove-Item .\src\controllers\*.js -ErrorAction SilentlyContinue
+   Remove-Item .\src\routes\*.js -ErrorAction SilentlyContinue
+   Remove-Item .\src\*.js -ErrorAction SilentlyContinue
+   ```
+
+3. **Corrigir o caminho de importação** (se necessário):
+   Edite o arquivo `src\controllers\taskController.ts` e atualize a importação:
+   ```typescript
+   import { PrismaClient } from '../../generated/prisma';
+   ```
+
+4. **Verifique a estrutura de diretórios**:
+   Após gerar o cliente Prisma, deve existir um diretório `/generated/prisma/` com os arquivos necessários.
 
 ## Caminhos de Arquivo
 
@@ -70,3 +109,25 @@ Para isso, instale o pacote `cross-env`:
 ```bash
 npm install --save-dev cross-env
 ```
+
+## Implementação de Controladores com Arrow Functions
+
+É essencial implementar os métodos do controlador como arrow functions para evitar problemas com o contexto `this` no Windows:
+
+```typescript
+// Forma correta (use esta abordagem):
+export class TaskController {
+  getAllTasks = async (req: Request, res: Response) => {
+    // Implementação
+  };
+}
+
+// Forma que pode causar problemas (evite):
+export class TaskController {
+  async getAllTasks(req: Request, res: Response) {
+    // Implementação
+  }
+}
+```
+
+Esta abordagem garante que o contexto `this` seja preservado quando os métodos são passados como callbacks para as rotas Express.
